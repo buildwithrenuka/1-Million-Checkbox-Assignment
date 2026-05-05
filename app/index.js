@@ -50,21 +50,31 @@ function maskedUrl(url) {
 
 console.log(`Using REDIS_URL=${maskedUrl(REDIS_URL)}`);
 
+// function createRedisClient(url) {
+//   if (!url) return new Redis();
+//   const opts = { url };
+//   // Some managed providers use rediss:// (TLS). Allow opting-out of
+//   // strict cert validation with REDIS_TLS_REJECT_UNAUTHORIZED=0 when
+//   // you understand the security implications (useful for self-signed certs).
+//   if (url.startsWith("rediss://") && process.env.REDIS_TLS_REJECT_UNAUTHORIZED === "0") {
+//     opts.tls = { rejectUnauthorized: false };
+//   }
+//   return new Redis(opts);
+// }
+
+
 function createRedisClient(url) {
-  if (!url) return new Redis();
-  const opts = { url };
-  // Some managed providers use rediss:// (TLS). Allow opting-out of
-  // strict cert validation with REDIS_TLS_REJECT_UNAUTHORIZED=0 when
-  // you understand the security implications (useful for self-signed certs).
-  if (url.startsWith("rediss://") && process.env.REDIS_TLS_REJECT_UNAUTHORIZED === "0") {
-    opts.tls = { rejectUnauthorized: false };
-  }
-  return new Redis(opts);
+  if (!url) return new Redis(); // fallback to localhost
+  return new Redis(url);        // ioredis seedha URL string leta hai
 }
+
 
 const redis = createRedisClient(REDIS_URL);
 const pub   = createRedisClient(REDIS_URL);
 const sub   = createRedisClient(REDIS_URL);
+
+
+console.log("Using REDIS_URL=", REDIS_URL ? "SET ✅" : "NOT SET ❌");
 
 // Log Redis connection errors cleanly instead of crashing
 [redis, pub, sub].forEach((r, i) => {
