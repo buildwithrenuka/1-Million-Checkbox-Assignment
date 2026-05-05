@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import authRoutes from "./routes/authRoutes.js";
+import authRoutes from "../routes/authRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
