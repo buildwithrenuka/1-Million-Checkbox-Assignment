@@ -64,8 +64,15 @@ console.log(`Using REDIS_URL=${maskedUrl(REDIS_URL)}`);
 
 
 function createRedisClient(url) {
-  if (!url) return new Redis(); // fallback to localhost
-  return new Redis(url);        // ioredis seedha URL string leta hai
+  if (!url) return new Redis();
+  // ioredis URL parser ke liye explicitly options pass karo
+  const parsed = new URL(url);
+  return new Redis({
+    host: parsed.hostname,
+    port: parseInt(parsed.port, 10),
+    password: parsed.password,
+    username: parsed.username || "default",
+  });
 }
 
 
