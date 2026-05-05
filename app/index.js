@@ -11,16 +11,6 @@ import authRoutes from "../routes/authRoutes.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
 
-// Overview of server flow (step-by-step):
-// 1) Load libraries and configuration (JWT secret, total checkboxes).
-// 2) Setup middleware and static file serving for the frontend.
-// 3) Create three Redis clients: main, publisher, subscriber.
-// 4) Subscribe to Redis channel and forward published updates to WebSocket clients.
-// 5) Implement a small rate limiter using Redis counters.
-// 6) Provide `/state` endpoint that returns the full bitfield as booleans.
-// 7) Accept WebSocket connections (authenticate via JWT), handle toggle requests,
-//    and broadcast user counts and updates.
-
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me-in-production";
 const TOTAL_CHECKBOXES = process.env.TOTAL_CHECKBOXES
@@ -32,58 +22,42 @@ app.use(cors());
 app.use(express.json());
 
 // ─── Serve frontend from /public ──────────────────────────────────────────────
-app.use(express.static(join(__dirname, "public")));
-
+// __dirname = /app, public folder root mein hai, isliye ".." se upar jaate hain
+app.use(express.static(join(__dirname, "..", "public")));
 app.use("/auth", authRoutes);
 
 // ─── Redis connections ─────────────────────────────────────────────────────────
-// Keep pub and sub on dedicated connections — ioredis blocks a connection in
-// subscriber mode, so mixing pub/sub with normal commands on the same client
-// causes an error.
 const REDIS_URL = process.env.REDIS_URL;
 
-// Mask credentials for safe logging (e.g. redis://:password@host:6379)
 function maskedUrl(url) {
   if (!url) return "(not set)";
   return url.replace(/:\/\/([^@]+)@/, "//:****@");
 }
 
 console.log(`Using REDIS_URL=${maskedUrl(REDIS_URL)}`);
+console.log("REDIS_URL SET:", REDIS_URL ? "✅" : "❌");
 
-// function createRedisClient(url) {
-//   if (!url) return new Redis();
-//   const opts = { url };
-//   // Some managed providers use rediss:// (TLS). Allow opting-out of
-//   // strict cert validation with REDIS_TLS_REJECT_UNAUTHORIZED=0 when
-//   // you understand the security implications (useful for self-signed certs).
-//   if (url.startsWith("rediss://") && process.env.REDIS_TLS_REJECT_UNAUTHORIZED === "0") {
-//     opts.tls = { rejectUnauthorized: false };
-//   }
-//   return new Redis(opts);
-// }
-
-
+// Upstash rediss:// (TLS) aur normal redis:// dono handle karta hai
 function createRedisClient(url) {
   if (!url) return new Redis();
-  // ioredis URL parser ke liye explicitly options pass karo
+
   const parsed = new URL(url);
+  const isTLS  = url.startsWith("rediss://");
+
   return new Redis({
-    host: parsed.hostname,
-    port: parseInt(parsed.port, 10),
-    password: parsed.password,
+    host:     parsed.hostname,
+    port:     parseInt(parsed.port, 10),
+    password: decodeURIComponent(parsed.password),
     username: parsed.username || "default",
+    tls:      isTLS ? { rejectUnauthorized: false } : undefined,
   });
 }
-
 
 const redis = createRedisClient(REDIS_URL);
 const pub   = createRedisClient(REDIS_URL);
 const sub   = createRedisClient(REDIS_URL);
 
-
-console.log("Using REDIS_URL=", REDIS_URL ? "SET ✅" : "NOT SET ❌");
-
-// Log Redis connection errors cleanly instead of crashing
+// Log Redis connection errors cleanly
 [redis, pub, sub].forEach((r, i) => {
   const name = ["main", "pub", "sub"][i];
   r.on("error", (err) => console.error(`Redis [${name}] error:`, err.message));
@@ -93,20 +67,17 @@ const CHANNEL      = "checkbox_updates";
 const BITFIELD_KEY = "checkboxes";
 
 // ─── Pub/Sub subscriber ────────────────────────────────────────────────────────
-// Subscribe to Redis channel for checkbox updates. On error, log it.
 sub.subscribe(CHANNEL, (err) => {
   if (err) console.error("Pub/Sub subscribe failed:", err);
-  else console.log(`Subscribed to Redis channel: ${CHANNEL}`);
+  else     console.log(`Subscribed to Redis channel: ${CHANNEL}`);
 });
 
-// When a message is published on the Redis channel, forward it to all WS clients.
 sub.on("message", (_channel, message) => {
-  const data = JSON.parse(message); // { index, value }
-
+  const data = JSON.parse(message);
   wss.clients.forEach((client) => {
-    if (client.readyState === 1 /* OPEN */) {
+    if (client.readyState === 1) {
       client.send(JSON.stringify({
-        type: "UPDATE",
+        type:  "UPDATE",
         index: data.index,
         value: data.value,
       }));
@@ -115,16 +86,12 @@ sub.on("message", (_channel, message) => {
 });
 
 // ─── Custom rate limiter ───────────────────────────────────────────────────────
-// Uses a Redis counter with a 1-second TTL per user.
-// Allows up to MAX_EVENTS toggles per second. No third-party package.
 const MAX_EVENTS_PER_SECOND = 10;
 
 async function isRateLimited(userId) {
   const key   = `rate:${userId}`;
   const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, 1);
-  }
+  if (count === 1) await redis.expire(key, 1);
   return count > MAX_EVENTS_PER_SECOND;
 }
 
@@ -149,7 +116,7 @@ async function toggleCheckbox(index) {
   return newValue;
 }
 
-// ─── State endpoint (public) ───────────────────────────────────────────────────
+// ─── State endpoint ────────────────────────────────────────────────────────────
 app.get("/state", async (req, res) => {
   try {
     const totalBytes = Math.ceil(TOTAL_CHECKBOXES / 8);
@@ -170,16 +137,15 @@ app.get("/state", async (req, res) => {
   }
 });
 
-// Root — serve index.html (static middleware handles it, this is a fallback)
+// Root fallback
 app.get("/", (_req, res) => {
-  res.sendFile(join(__dirname, "public", "index.html"));
+  res.sendFile(join(__dirname, "..", "public", "index.html"));
 });
 
 // ─── HTTP + WebSocket server ───────────────────────────────────────────────────
 const server = http.createServer(app);
 const wss    = new WebSocketServer({ server });
 
-// ─── Broadcast live user count ─────────────────────────────────────────────────
 function broadcastUserCount() {
   const count = wss.clients.size;
   const msg   = JSON.stringify({ type: "USERS", count });
@@ -199,23 +165,19 @@ wss.on("connection", (ws, req) => {
     try {
       user = jwt.verify(token, JWT_SECRET);
     } catch {
-      // Token invalid or expired: close connection with code 4001
       ws.close(4001, "Invalid or expired token.");
       return;
     }
   } else {
-    // No token provided: require authentication
     ws.close(4000, "Authentication required.");
     return;
   }
 
-  // Log connection (without emoji)
   console.log(`WS connected: ${user.email}`);
   broadcastUserCount();
 
   ws.on("message", async (raw) => {
     let payload;
-
     try {
       payload = JSON.parse(raw);
     } catch {
