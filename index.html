@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1M Checkboxes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #111118;
+      --lift:     #18181f;
+      --border:   #2a2a38;
+      --border-hi:#3d3d55;
+      --text:     #e8e8f0;
+      --muted:    #6b6b80;
+      --dim:      #3a3a4a;
+      --green:    #00ff88;
+      --green-dim:#003322;
+      --green-mid:#00cc66;
+      --amber:    #ffcc00;
+      --red:      #ff4455;
+      --mono:     'DM Mono', monospace;
+      --display:  'Syne', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--mono);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Scanline overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── Ambient glow ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -30%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(0,255,136,0.04) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Layout ── */
+    .shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      animation: fadeDown 0.5s ease both;
+    }
+
+    .brand { display: flex; flex-direction: column; gap: 6px; }
+
+    .brand-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--green);
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+
+    h1 span { color: var(--green); }
+
+    .sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Status badge ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--dim);
+      transition: background 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
+    }
+    .dot.connected { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .dot.warning   { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+    .dot.error     { background: var(--red);   box-shadow: 0 0 10px var(--red); }
+
+    /* ── Main grid layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ── Panel / card ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .panel-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-header-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .ph-red    { background: #ff5f57; }
+    .ph-amber  { background: #febc2e; }
+    .ph-green  { background: #28c840; }
+
+    .panel-title {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+      margin-left: 4px;
+    }
+
+    .panel-body { padding: 20px; }
+
+    /* ── Auth panel ── */
+    .auth-panel {
+      position: sticky;
+      top: 24px;
+      animation-delay: 0.05s;
+    }
+
+    .field { margin-bottom: 14px; }
+
+    label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(0,255,136,0.08);
+    }
+
+    .input::placeholder { color: var(--dim); }
+
+    .pw-wrap { position: relative; }
+
+    .toggle-pw {
+      position: absolute;
+      right: 10px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none;
+      color: var(--muted); font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.05em;
+      cursor: pointer; padding: 2px 4px;
+    }
+    .toggle-pw:hover { color: var(--text); }
+
+    /* ── Buttons ── */
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+
+    button {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 10px 14px;
+      transition: all 0.15s ease;
+      text-transform: uppercase;
+    }
+
+    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+    .btn-primary {
+      background: var(--green);
+      color: #000;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--green-mid);
+      box-shadow: 0 0 20px rgba(0,255,136,0.25);
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover:not(:disabled) {
+      border-color: var(--border-hi);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .btn-full { width: 100%; margin-top: 10px; }
+
+    /* ── Message bar ── */
+    .msg {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.5;
+      display: none;
+      border-left: 3px solid transparent;
+    }
+    .msg.show { display: block; }
+    .msg.info    { background: rgba(0,100,255,0.08); border-color: #3366ff; color: #7799ff; }
+    .msg.success { background: rgba(0,255,136,0.06); border-color: var(--green); color: var(--green); }
+    .msg.warning { background: rgba(255,204,0,0.08); border-color: var(--amber); color: var(--amber); }
+    .msg.error   { background: rgba(255,68,85,0.08);  border-color: var(--red);   color: var(--red); }
+
+    /* ── Board panel ── */
+    .board-panel { animation-delay: 0.1s; }
+
+    .board-meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .chip {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      padding: 5px 12px;
+      background: var(--lift);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--muted);
+    }
+
+    .chip strong { color: var(--green); font-weight: 500; }
+
+    /* ── Grid container ── */
+    .grid-wrap {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .grid-label {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 12px;
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+      gap: 6px;
+    }
+
+    /* ── Virtual scroll viewport ── */
+    #viewport {
+      position: relative;
+      height: 520px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      border-radius: 3px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    #spacer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1px;
+      /* height set by JS = totalRows * ROW_H */
+    }
+
+    #grid {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 50), 1fr);
+      gap: 4px;
+      /* transform set by JS to position visible rows */
+    }
+
+    /* ── Checkbox cell ── */
+    .cell {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s, box-shadow 0.15s;
+      position: relative;
+    }
+
+    .cell:hover {
+      border-color: var(--border-hi);
+      transform: scale(1.1);
+      z-index: 1;
+    }
+
+    .cell:has(input:checked) {
+      background: var(--green-dim);
+      border-color: var(--green);
+      box-shadow: 0 0 8px rgba(0,255,136,0.15);
+    }
+
+    .cell:has(input:checked):hover {
+      box-shadow: 0 0 16px rgba(0,255,136,0.25);
+    }
+
+    .cell input[type="checkbox"] {
+      width: 14px; height: 14px;
+      accent-color: var(--green);
+      cursor: pointer;
+    }
+
+    /* Pulse animation on newly toggled cell */
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(0,255,136,0.5); }
+      100% { box-shadow: 0 0 0 12px rgba(0,255,136,0); }
+    }
+
+    .cell.just-toggled {
+      animation: pulse 0.4s ease-out forwards;
+    }
+
+    /* ── Legend ── */
+    .legend {
+      display: flex;
+      gap: 18px;
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+
+    .legend-swatch {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+    }
+    .legend-swatch.on {
+      background: var(--green-dim);
+      border-color: var(--green);
+    }
+
+    /* ── Helper text ── */
+    .helper {
+      margin-top: 16px;
+      font-size: 11px;
+      color: var(--dim);
+      line-height: 1.7;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      .auth-panel { position: static; }
+    }
+
+    @media (max-width: 520px) {
+      .shell { padding: 24px 16px 60px; }
+      .btn-row { grid-template-columns: 1fr; }
+      #grid { grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <span class="brand-tag">// real-time experiment</span>
+      <h1>1M <span>Checkboxes</span></h1>
+      <p class="sub">Shared state · WebSocket sync · Redis backed</p>
+    </div>
+
+    <div class="status-badge">
+      <span id="statusDot" class="dot"></span>
+      <span id="statusText">disconnected</span>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="layout">
+
+    <!-- Auth sidebar -->
+    <aside class="panel auth-panel">
+      <div class="panel-header">
+        <span class="panel-header-dot ph-red"></span>
+        <span class="panel-header-dot ph-amber"></span>
+        <span class="panel-header-dot ph-green"></span>
+        <span class="panel-title">auth.js</span>
+      </div>
+
+      <div class="panel-body">
+        <form id="authForm">
+          <div class="field">
+            <label for="email">email</label>
+            <input id="email" name="email" class="input" type="email"
+              placeholder="you@example.com" autocomplete="username" required />
+          </div>
+
+          <div class="field">
+            <label for="current-password">password</label>
+            <div class="pw-wrap">
+              <input id="current-password" name="password" class="input" type="password"
+                placeholder="••••••••" autocomplete="current-password" required />
+              <button type="button" class="toggle-pw" id="togglePw">show</button>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button id="loginBtn" type="submit" class="btn-primary">login</button>
+            <button id="registerBtn" type="button" class="btn-ghost">register</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <button id="disconnectBtn" type="button" class="btn-ghost btn-full">disconnect</button>
+        </form>
+
+        <div id="msg" class="msg"></div>
+
+        <p class="helper">
+          Toggle checkboxes to update shared state in real time.<br>
+          Login required to send updates.
+        </p>
+      </div>
+    </aside>
+
+    <!-- Board -->
+    <main class="panel board-panel">
+      <div class="panel-header">
+        <span class="panel-header-dot ph-red"></span>
+        <span class="panel-header-dot ph-amber"></span>
+        <span class="panel-header-dot ph-green"></span>
+        <span class="panel-title">board.live</span>
+      </div>
+
+      <div class="panel-body">
+        <div class="board-meta">
+          <span class="chip">total &nbsp;<strong>1,000,000</strong></span>
+          <span class="chip">checked &nbsp;<strong id="checkedCount">0</strong></span>
+          <span class="chip">users &nbsp;<strong id="userCount">—</strong></span>
+        </div>
+
+        <div class="grid-wrap">
+          <p class="grid-label">// shared live grid &nbsp;·&nbsp; <span id="rangeLabel">rows 1 – …</span></p>
+          <!-- Outer scroll container — fixed height, overflow scroll -->
+          <div id="viewport">
+            <!-- Spacer that gives the scrollbar correct total height -->
+            <div id="spacer"></div>
+            <!-- Only visible rows live here -->
+            <div id="grid" aria-label="Realtime checkbox grid"></div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span class="legend-item"><i class="legend-swatch"></i> unchecked</span>
+          <span class="legend-item"><i class="legend-swatch on"></i> checked</span>
+        </div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script>
+  // ── API URLs — same origin, works locally + on Railway ─────────────────────
+  const API_BASE = window.location.origin;
+  const WS_BASE  = API_BASE.replace(/^http/, "ws");
+
+  // ── Constants ────────────────────────────────────────────────────────────────
+  const TOTAL      = 1_000_000;
+  const COLS       = 50;          // checkboxes per row
+  const CELL_SIZE  = 22;          // px per cell (including gap)
+  const ROW_H      = CELL_SIZE;   // row height
+  const OVERSCAN   = 5;           // extra rows rendered above/below viewport
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  // Compact bit-array in a Uint8Array — same layout as Redis bitfield.
+  // 1M bits = 125 000 bytes ≈ 122 KB — totally fine in memory.
+  const bitState = new Uint8Array(Math.ceil(TOTAL / 8));
+
+  function getBit(i)        { return (bitState[i >> 3] >> (i & 7)) & 1; }
+  function setBit(i, val)   {
+    if (val) bitState[i >> 3] |=  (1 << (i & 7));
+    else     bitState[i >> 3] &= ~(1 << (i & 7));
+  }
+
+  // ── DOM refs ─────────────────────────────────────────────────────────────────
+  let ws;
+  let authLoading  = false;
+  let tokenMemory  = localStorage.getItem("token") || "";
+
+  const authForm      = document.getElementById("authForm");
+  const msgEl         = document.getElementById("msg");
+  const checkedCount  = document.getElementById("checkedCount");
+  const userCount     = document.getElementById("userCount");
+  const statusText    = document.getElementById("statusText");
+  const statusDot     = document.getElementById("statusDot");
+  const passwordInput = document.getElementById("current-password");
+  const togglePwBtn   = document.getElementById("togglePw");
+  const registerBtn   = document.getElementById("registerBtn");
+  const disconnectBtn = document.getElementById("disconnectBtn");
+  const viewport      = document.getElementById("viewport");
+  const spacer        = document.getElementById("spacer");
+  const grid          = document.getElementById("grid");
+  const rangeLabel    = document.getElementById("rangeLabel");
+
+  // ── Checked count (from bitState, not DOM) ───────────────────────────────────
+  // Recount on every state load — O(n/8) with popcount trick.
+  function recount() {
+    let n = 0;
+    for (let b of bitState) {
+      // Brian Kernighan popcount
+      let x = b;
+      while (x) { x &= x - 1; n++; }
+    }
+    checkedCount.textContent = n.toLocaleString();
+  }
+
+  // ── Utilities ────────────────────────────────────────────────────────────────
+  function show(text, type = "info") {
+    msgEl.className = `msg show ${type}`;
+    msgEl.textContent = text;
+  }
+
+  function setStatus(text, state = "") {
+    statusText.textContent = text;
+    statusDot.className = "dot" + (state ? ` ${state}` : "");
+  }
+
+  function setLoading(val) {
+    authLoading = val;
+    document.querySelectorAll(".btn-primary, .btn-ghost").forEach(b => {
+      if (b.id !== "disconnectBtn") b.disabled = val;
+    });
+  }
+
+  function readCreds() {
+    const email    = document.getElementById("email").value.trim();
+    const password = passwordInput.value.trim();
+    if (!email || !password) { show("Email aur password dono chahiye.", "error"); return null; }
+    return { email, password };
+  }
+
+  // ── Virtual scroll ───────────────────────────────────────────────────────────
+  const totalRows = Math.ceil(TOTAL / COLS);
+  spacer.style.height = (totalRows * ROW_H) + "px";
+  grid.style.setProperty("--cols", COLS);
+
+  // Pool of reusable cell elements — avoids creating/destroying DOM on every scroll.
+  // We keep exactly visibleRows + 2*OVERSCAN cells alive.
+  let pool = [];          // array of { label, cb } objects
+  let renderedStartRow = -1;
+
+  function getVisibleRows() {
+    const scrollTop    = viewport.scrollTop;
+    const viewH        = viewport.clientHeight;
+    const firstRow     = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+    const lastRow      = Math.min(totalRows - 1, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN);
+    return { firstRow, lastRow };
+  }
+
+  function renderWindow() {
+    const { firstRow, lastRow } = getVisibleRows();
+    if (firstRow === renderedStartRow) return; // nothing changed
+    renderedStartRow = firstRow;
+
+    const firstIdx = firstRow * COLS;
+    const lastIdx  = Math.min(TOTAL - 1, lastRow * COLS + COLS - 1);
+    const count    = lastIdx - firstIdx + 1;
+
+    // Grow pool if needed
+    while (pool.length < count) {
+      const label = document.createElement("label");
+      label.className = "cell";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      label.appendChild(cb);
+      pool.push({ label, cb });
+    }
+
+    // Detach grid from DOM while mutating (avoids reflow per cell)
+    const frag = document.createDocumentFragment();
+
+    for (let p = 0; p < count; p++) {
+      const i            = firstIdx + p;
+      const { label, cb } = pool[p];
+
+      const prev = parseInt(cb.dataset.idx ?? "-1", 10);
+      if (prev !== i) {
+        cb.dataset.idx  = i;
+        label.setAttribute("for", "cb-" + i);
+        label.title     = `#${(i + 1).toLocaleString()}`;
+        cb.id           = "cb-" + i;
+        cb.setAttribute("aria-label", "Cell " + (i + 1));
+        // Re-bind click to current i
+        cb.onclick = () => {
+          if (!ws || ws.readyState !== 1) { show("Pehle login karo.", "error"); return; }
+          ws.send(JSON.stringify({ index: i }));
+        };
+      }
+
+      cb.checked = getBit(i) === 1;
+      frag.appendChild(label);
+    }
+
+    // Hide unused pool cells
+    grid.innerHTML = "";
+    grid.appendChild(frag);
+
+    // Translate grid to correct vertical position
+    grid.style.transform = `translateY(${firstRow * ROW_H}px)`;
+
+    // Update range label
+    const startCb = firstIdx + 1;
+    const endCb   = lastIdx  + 1;
+    rangeLabel.textContent = `#${startCb.toLocaleString()} – #${endCb.toLocaleString()}`;
+  }
+
+  // Re-render on scroll (throttled with rAF)
+  let ticking = false;
+  viewport.addEventListener("scroll", () => {
+    if (!ticking) {
+      requestAnimationFrame(() => { renderWindow(); ticking = false; });
+      ticking = true;
+    }
+  });
+
+  // Re-render on resize (COLS stays fixed at 50 for simplicity)
+  window.addEventListener("resize", renderWindow);
+
+  // ── Auth ─────────────────────────────────────────────────────────────────────
+  async function login() {
+    if (authLoading) return;
+    const creds = readCreds();
+    if (!creds) return;
+    try {
+      setLoading(true);
+      show("Signing in...", "info");
+      setStatus("authenticating", "warning");
+      const res  = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creds),
+      });
+      const data = await res.json();
+      if (data.token) {
+        tokenMemory = data.token;
+        localStorage.setItem("token", data.token);
+        connectWS();
+        show("Logged in successfully.", "success");
+      } else {
+        setStatus("disconnected", "error");
+        show(data.error || "Login failed.", "error");
+      }
+    } catch { setStatus("server unavailable", "error"); show("Server tak nahi pahuncha.", "error"); }
+    finally   { setLoading(false); }
+  }
+
+  async function register() {
+    if (authLoading) return;
+    const creds = readCreds();
+    if (!creds) return;
+    try {
+      setLoading(true);
+      show("Creating account...", "info");
+      setStatus("registering", "warning");
+      const res  = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creds),
+      });
+      const data = await res.json();
+      if (data.message) { setStatus("ready"); show("Registered! Ab login kar sakte ho.", "success"); }
+      else              { setStatus("failed", "error"); show(data.error || "Registration failed.", "error"); }
+    } catch { setStatus("server unavailable", "error"); show("Server tak nahi pahuncha.", "error"); }
+    finally   { setLoading(false); }
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────────
+  function connectWS() {
+    if (!tokenMemory) { show("Pehle login karo.", "error"); return; }
+    if (ws && ws.readyState === 1) ws.close();
+
+    setStatus("connecting...", "warning");
+    ws = new WebSocket(`${WS_BASE}?token=${tokenMemory}`);
+
+    ws.onopen = () => { setStatus("connected", "connected"); show("Live updates connected.", "success"); };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "UPDATE") {
+        setBit(data.index, data.value ? 1 : 0);
+        // Update DOM cell only if it's currently visible
+        const cb = document.getElementById("cb-" + data.index);
+        if (cb) {
+          cb.checked = data.value;
+          // Pulse animation
+          const cell = cb.parentElement;
+          cell.classList.remove("just-toggled");
+          void cell.offsetWidth;
+          cell.classList.add("just-toggled");
+          setTimeout(() => cell.classList.remove("just-toggled"), 500);
+        }
+        // Update global count by delta (faster than full recount)
+        const cur = parseInt(checkedCount.textContent.replace(/,/g, ""), 10) || 0;
+        checkedCount.textContent = (data.value ? cur + 1 : Math.max(0, cur - 1)).toLocaleString();
+      }
+
+      if (data.type === "RATE_LIMIT") show("Bahut fast! Thoda slow karo.", "warning");
+      if (data.type === "USERS")      userCount.textContent = data.count;
+    };
+
+    ws.onclose = () => { setStatus("disconnected"); userCount.textContent = "—"; };
+    ws.onerror = () => { setStatus("error", "error"); show("WebSocket connection failed.", "error"); };
+  }
+
+  function disconnectWS() {
+    if (ws) ws.close();
+    setStatus("disconnected");
+    show("Disconnected.", "info");
+  }
+
+  // ── Event bindings ───────────────────────────────────────────────────────────
+  authForm.addEventListener("submit", e => { e.preventDefault(); login(); });
+  registerBtn.addEventListener("click", register);
+  disconnectBtn.addEventListener("click", disconnectWS);
+  togglePwBtn.addEventListener("click", () => {
+    const isHidden = passwordInput.type === "password";
+    passwordInput.type = isHidden ? "text" : "password";
+    togglePwBtn.textContent = isHidden ? "hide" : "show";
+  });
+
+  // ── Load initial state from server ───────────────────────────────────────────
+  async function loadState() {
+    try {
+      show("Loading 1M checkbox state...", "info");
+      const res  = await fetch(`${API_BASE}/state`);
+      const bits = await res.json(); // array of 1M booleans
+
+      // Pack into bitState
+      for (let i = 0; i < bits.length; i++) setBit(i, bits[i] ? 1 : 0);
+
+      recount();
+      renderWindow();
+      msgEl.className = "msg"; // hide message
+    } catch {
+      show("Board state load nahi ho saka.", "error");
+    }
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────────
+  renderWindow(); // render immediately with empty state so grid appears
+  loadState();    // then populate from server
+
+  if (tokenMemory) connectWS();
+  else             setStatus("disconnected");
+</script>
+  // Steps overview (what the frontend does):
+  // 1) Maintain an in-memory bitfield mirror (`bitState`) matching the server Redis bitfield.
+  // 2) Virtual-scroll a large grid: only render visible cells for performance.
+  // 3) Load initial state from `GET /state` and populate `bitState`.
+  // 4) Connect to server via WebSocket (authenticated with JWT) to receive live updates.
+  // 5) When user toggles a visible cell, send `{ index }` over WS to request a toggle.
+  // 6) Apply incoming `{ type: "UPDATE", index, value }` messages to `bitState` and DOM.
+
+  // ── Constants (samjho) ───────────────────────────────────────────────────────
+</html>
