@@ -40,9 +40,31 @@ app.use("/auth", authRoutes);
 // Keep pub and sub on dedicated connections — ioredis blocks a connection in
 // subscriber mode, so mixing pub/sub with normal commands on the same client
 // causes an error.
-const redis = new Redis(process.env.REDIS_URL || undefined);
-const pub   = new Redis(process.env.REDIS_URL || undefined);
-const sub   = new Redis(process.env.REDIS_URL || undefined);
+const REDIS_URL = process.env.REDIS_URL;
+
+// Mask credentials for safe logging (e.g. redis://:password@host:6379)
+function maskedUrl(url) {
+  if (!url) return "(not set)";
+  return url.replace(/:\/\/([^@]+)@/, "//:****@");
+}
+
+console.log(`Using REDIS_URL=${maskedUrl(REDIS_URL)}`);
+
+function createRedisClient(url) {
+  if (!url) return new Redis();
+  const opts = { url };
+  // Some managed providers use rediss:// (TLS). Allow opting-out of
+  // strict cert validation with REDIS_TLS_REJECT_UNAUTHORIZED=0 when
+  // you understand the security implications (useful for self-signed certs).
+  if (url.startsWith("rediss://") && process.env.REDIS_TLS_REJECT_UNAUTHORIZED === "0") {
+    opts.tls = { rejectUnauthorized: false };
+  }
+  return new Redis(opts);
+}
+
+const redis = createRedisClient(REDIS_URL);
+const pub   = createRedisClient(REDIS_URL);
+const sub   = createRedisClient(REDIS_URL);
 
 // Log Redis connection errors cleanly instead of crashing
 [redis, pub, sub].forEach((r, i) => {
