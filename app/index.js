@@ -39,10 +39,24 @@ const TOTAL_CHECKBOXES = process.env.TOTAL_CHECKBOXES
 app.use(cors());
 app.use(express.json());
 
+// Cache control middleware: disable 304 caching for HTML, allow moderate caching for assets
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/') {
+    // HTML: force revalidation, no caching
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  } else if (req.path.match(/\.(js|css|png|jpg|gif|svg|woff2?)$/i)) {
+    // Static assets: cache for 1 hour (can use versioning for real cache busting)
+    res.set('Cache-Control', 'public, max-age=3600');
+  }
+  next();
+});
+
 // Static assets and auth routes
 // Serve the prebuilt frontend from the `public` folder so GET / returns index.html
 // and static JS/CSS is served; mount auth endpoints under /auth.
-app.use(express.static(join(__dirname, "..", "public")));
+app.use(express.static(join(__dirname, "..", "public"), { etag: false }));
 app.use("/auth", authRoutes);
 
 // Redis connection handling
