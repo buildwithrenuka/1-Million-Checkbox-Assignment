@@ -218,8 +218,11 @@ wss.on("connection", (ws, req) => {
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server on http://localhost:${PORT}`);
+const HOST = process.env.HOST || "0.0.0.0";
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
+  console.log(`Public URL: http://localhost:${PORT}`);
   console.log(`WebSocket: ws://localhost:${PORT}?token=<jwt>`);
   console.log(`Total checkboxes: ${TOTAL_CHECKBOXES.toLocaleString()}`);
 });
